@@ -1,0 +1,243 @@
+{
+    "pipeline_version": "1.0.0",
+    "created_at_utc": "2026-03-06T07:56:09.476326+00:00",
+    "numerical_features": {
+        "tenure": {
+            "mean": 32.30870980870981,
+            "std": 24.507170416757287,
+            "min": 0.0,
+            "max": 72.0,
+            "quantiles": {
+                "p10": 2.0,
+                "p25": 9.0,
+                "p50": 29.0,
+                "p75": 55.0,
+                "p90": 69.0
+            },
+            "missing_ratio": 0.0
+        },
+        "MonthlyCharges": {
+            "mean": 64.7445461945462,
+            "std": 30.06055664339857,
+            "min": 18.25,
+            "max": 118.75,
+            "quantiles": {
+                "p10": 20.05,
+                "p25": 35.6125,
+                "p50": 70.32499999999999,
+                "p75": 89.8,
+                "p90": 102.6
+            },
+            "missing_ratio": 0.0
+        },
+        "TotalCharges": {
+            "mean": 2282.7125458622095,
+            "std": 2271.888080896444,
+            "min": 18.85,
+            "max": 8684.8,
+            "quantiles": {
+                "p10": 85.5,
+                "p25": 402.6625,
+                "p50": 1382.35,
+                "p75": 3778.1749999999997,
+                "p90": 6005.75
+            },
+            "missing_ratio": 0.001628001628001628
+        }
+    },
+    "categorical_features": {
+        "gender": {
+            "cardinality": 2,
+            "distribution": {
+                "Female": 0.5006105006105006,
+                "Male": 0.4993894993894994
+            },
+            "missing_ratio": 0.0
+        },
+        "SeniorCitizen": {
+            "cardinality": 2,
+            "distribution": {
+                "No": 0.8386243386243386,
+                "Yes": 0.16137566137566137
+            },
+            "missing_ratio": 0.0
+        },
+        "Partner": {
+            "cardinality": 2,
+            "distribution": {
+                "No": 0.5164835164835165,
+                "Yes": 0.4835164835164835
+            },
+            "missing_ratio": 0.0
+        },
+        "Dependents": {
+            "cardinality": 2,
+            "distribution": {
+                "No": 0.7008547008547008,
+                "Yes": 0.29914529914529914
+            },
+            "missing_ratio": 0.0
+        },
+        "PhoneService": {
+            "cardinality": 2,
+            "distribution": {
+                "Yes": 0.9017094017094017,
+                "No": 0.09829059829059829
+            },
+            "missing_ratio": 0.0
+        },
+        "MultipleLines": {
+            "cardinality": 3,
+            "distribution": {
+                "No": 0.47985347985347987,
+                "Yes": 0.42185592185592186,
+                "No phone service": 0.09829059829059829
+            },
+            "missing_ratio": 0.0
+        },
+        "InternetService": {
+            "cardinality": 3,
+            "distribution": {
+                "Fiber optic": 0.4367114367114367,
+                "DSL": 0.3471713471713472,
+                "No": 0.21611721611721613
+            },
+            "missing_ratio": 0.0
+        },
+        "OnlineSecurity": {
+            "cardinality": 3,
+            "distribution": {
+                "No": 0.4981684981684982,
+                "Yes": 0.2857142857142857,
+                "No internet service": 0.21611721611721613
+            },
+            "missing_ratio": 0.0
+        },
+        "OnlineBackup": {
+            "cardinality": 3,
+            "distribution": {
+                "No": 0.43426943426943426,
+                "Yes": 0.3496133496133496,
+                "No internet service": 0.21611721611721613
+            },
+            "missing_ratio": 0.0
+        },
+        "DeviceProtection": {
+            "cardinality": 3,
+            "distribution": {
+                "No": 0.43894993894993894,
+                "Yes": 0.34493284493284493,
+                "No internet service": 0.21611721611721613
+            },
+            "missing_ratio": 0.0
+        },
+        "TechSupport": {
+            "cardinality": 3,
+            "distribution": {
+                "No": 0.4934879934879935,
+                "Yes": 0.2903947903947904,
+                "No internet service": 0.21611721611721613
+            },
+            "missing_ratio": 0.0
+        },
+        "StreamingTV": {
+            "cardinality": 3,
+            "distribution": {
+                "No": 0.3951973951973952,
+                "Yes": 0.3886853886853887,
+                "No internet service": 0.21611721611721613
+            },
+            "missing_ratio": 0.0
+        },
+        "StreamingMovies": {
+            "cardinality": 3,
+            "distribution": {
+                "No": 0.3974358974358974,
+                "Yes": 0.38644688644688646,
+                "No internet service": 0.21611721611721613
+            },
+            "missing_ratio": 0.0
+        },
+        "Contract": {
+            "cardinality": 3,
+            "distribution": {
+                "Month-to-month": 0.5516890516890517,
+                "Two year": 0.23911273911273911,
+                "One year": 0.2091982091982092
+            },
+            "missing_ratio": 0.0
+        },
+        "PaperlessBilling": {
+            "cardinality": 2,
+            "distribution": {
+                "Yes": 0.5999185999186,
+                "No": 0.4000814000814001
+            },
+            "missing_ratio": 0.0
+        },
+        "PaymentMethod": {
+            "cardinality": 4,
+            "distribution": {
+                "Electronic check": 0.3367928367928368,
+                "Mailed check": 0.22568172568172568,
+                "Credit card (automatic)": 0.2201872201872202,
+                "Bank transfer (automatic)": 0.21733821733821734
+            },
+            "missing_ratio": 0.0
+        }
+    },
+    "encoded_feature_metadata": {
+        "categorical_cardinality": {
+            "gender": 2,
+            "SeniorCitizen": 2,
+            "Partner": 2,
+            "Dependents": 2,
+            "PhoneService": 2,
+            "MultipleLines": 3,
+            "InternetService": 3,
+            "OnlineSecurity": 3,
+            "OnlineBackup": 3,
+            "DeviceProtection": 3,
+            "TechSupport": 3,
+            "StreamingTV": 3,
+            "StreamingMovies": 3,
+            "Contract": 3,
+            "PaperlessBilling": 2,
+            "PaymentMethod": 4
+        },
+        "output_feature_names": [
+            "tenure",
+            "MonthlyCharges",
+            "TotalCharges",
+            "gender_Male",
+            "SeniorCitizen_Yes",
+            "Partner_Yes",
+            "Dependents_Yes",
+            "PhoneService_Yes",
+            "MultipleLines_No phone service",
+            "MultipleLines_Yes",
+            "InternetService_Fiber optic",
+            "InternetService_No",
+            "OnlineSecurity_No internet service",
+            "OnlineSecurity_Yes",
+            "OnlineBackup_No internet service",
+            "OnlineBackup_Yes",
+            "DeviceProtection_No internet service",
+            "DeviceProtection_Yes",
+            "TechSupport_No internet service",
+            "TechSupport_Yes",
+            "StreamingTV_No internet service",
+            "StreamingTV_Yes",
+            "StreamingMovies_No internet service",
+            "StreamingMovies_Yes",
+            "Contract_One year",
+            "Contract_Two year",
+            "PaperlessBilling_Yes",
+            "PaymentMethod_Credit card (automatic)",
+            "PaymentMethod_Electronic check",
+            "PaymentMethod_Mailed check"
+        ],
+        "output_feature_count": 30
+    },
+    "baseline_hash": "e6a4bccaae7d4c627d7254524ed1e2ce20eb7d36e143d78ecaf98fde64217887"
+}

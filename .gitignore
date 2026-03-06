@@ -1,0 +1,92 @@
+# ==========================================
+# Python & Environments
+# ==========================================
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual Environments
+.venv/
+venv/
+env/
+ENV/
+bin/
+lib/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# ==========================================
+# Machine Learning & Data
+# ==========================================
+# Data directories (standard naming)
+data/
+datasets/
+raw_data/
+test_mongodb.py
+rough/
+main_0.py
+artifacts/
+logs/
+model_registry/
+aws/
+
+# Model weights and serialized objects
+*.h5
+*.pkl
+*.pth
+*.pt
+*.onnx
+*.pb
+*.joblib
+*.ckpt
+
+# TensorBoard logs
+logs/
+tfevents*
+
+# DVC (Data Version Control) - keep the .dvc files, ignore the cache
+.dvc/cache/
+
+# ==========================================
+# Jupyter Notebooks
+# ==========================================
+.ipynb_checkpoints
+*/.ipynb_checkpoints/*
+
+# ==========================================
+# IDEs & Editors
+# ==========================================
+# VS Code
+.vscode/
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+
+# PyCharm / IntelliJ
+.idea/
+
+# System Files
+.DS_Store
+Thumbs.db
+
+# ==========================================
+# Secrets & Configuration
+# ==========================================
+.env
+.flaskenv
+secrets.json
+*.pem
+*.key
