@@ -284,6 +284,7 @@ class DataValidation:
 
             report = {
                 "validation_type": "schema_validation",
+                "reference_schema_path": self.config.reference_schema_file_path,
                 "summary": validation["summary"],
                 "column_results": validation["column_checks"],
                 "validated_at_utc": datetime.now(

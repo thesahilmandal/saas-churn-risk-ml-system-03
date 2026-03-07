@@ -1,10 +1,11 @@
 """
 Data Ingestion Pipeline for Customer Churn Project.
 
-Responsibilities:
-- Load cleaned customer data from MongoDB
-- Perform stratified train / validation / test split
-- Persist datasets, schema, and experiment lineage metadata
+Responsibilities
+----------------
+1. Load cleaned customer data from MongoDB
+2. Perform reproducible stratified train/validation/test split
+3. Persist datasets, schema, and metadata for experiment lineage
 """
 
 import hashlib
@@ -32,37 +33,99 @@ load_dotenv()
 
 class DataIngestion:
     """
-    Production-grade data ingestion pipeline with full dataset lineage,
-    reproducibility guarantees, and experiment-comparable metadata.
+    Production-grade Data Ingestion component.
+
+    Responsibilities
+    ----------------
+    - Load dataset from MongoDB
+    - Perform deterministic cleaning
+    - Execute stratified train/validation/test split
+    - Generate schema and metadata artifacts
+
+    Design Principles
+    -----------------
+    - Reproducible experiments
+    - Deterministic dataset lineage
+    - Observability through metadata and logging
     """
 
     PIPELINE_VERSION = "1.0.0"
 
+    # =========================================================
+    # INITIALIZATION
+    # =========================================================
+
     def __init__(self, config: DataIngestionConfig) -> None:
+        """
+        Initialize the data ingestion pipeline.
+
+        Parameters
+        ----------
+        config : DataIngestionConfig
+            Configuration object for the data ingestion stage.
+        """
         try:
             self.config = config
             self.target_column = TARGET_COLUMN
+
+            self._validate_configuration()
 
             os.makedirs(self.config.data_ingestion_dir, exist_ok=True)
 
             logging.info(
                 "[DATA INGESTION INIT] Initialized | "
                 "dataset=customer_churn | "
-                f"pipeline_version={self.PIPELINE_VERSION}"
+                "pipeline_version=%s",
+                self.PIPELINE_VERSION,
             )
 
         except Exception as e:
-            raise CustomerChurnException(e, sys)
+            raise CustomerChurnException(e, sys) from e
 
-    # ------------------------------------------------------------------
-    # Utility Methods
-    # ------------------------------------------------------------------
+    # =========================================================
+    # CONFIGURATION VALIDATION
+    # =========================================================
+
+    def _validate_configuration(self) -> None:
+        """
+        Ensure required configuration parameters exist.
+        """
+        try:
+            required = {
+                "database_url": self.config.database_url,
+                "database_name": self.config.database_name,
+                "collection_name": self.config.collection_name,
+            }
+
+            missing = [k for k, v in required.items() if not v]
+
+            if missing:
+                raise EnvironmentError(
+                    f"Missing required configuration values: {missing}"
+                )
+
+        except Exception as e:
+            raise CustomerChurnException(e, sys) from e
+
+    # =========================================================
+    # UTILITY METHODS
+    # =========================================================
 
     @staticmethod
     def _compute_checksum(df: pd.DataFrame) -> str:
         """
         Compute SHA-256 checksum for a DataFrame.
+
         Ensures dataset identity and reproducibility.
+
+        Parameters
+        ----------
+        df : pd.DataFrame
+
+        Returns
+        -------
+        str
+            SHA256 checksum
         """
         hash_bytes = pd.util.hash_pandas_object(
             df,
@@ -71,51 +134,65 @@ class DataIngestion:
 
         return hashlib.sha256(hash_bytes).hexdigest()
 
-    # ------------------------------------------------------------------
-    # Data Loading
-    # ------------------------------------------------------------------
+    # =========================================================
+    # DATA LOADING
+    # =========================================================
 
     def _load_from_mongodb(self) -> pd.DataFrame:
         """
-        Load records from MongoDB in a deterministic manner.
+        Load records from MongoDB.
+
+        Returns
+        -------
+        pd.DataFrame
+            Dataset retrieved from MongoDB.
         """
         try:
             logging.info(
                 "[DATA INGESTION] Connecting to MongoDB | "
-                f"db={self.config.database_name}, "
-                f"collection={self.config.collection_name}"
+                "db=%s collection=%s",
+                self.config.database_name,
+                self.config.collection_name,
             )
 
             with pymongo.MongoClient(self.config.database_url) as client:
-                collection = client[
-                    self.config.database_name
-                ][self.config.collection_name]
+                collection = client[self.config.database_name][
+                    self.config.collection_name
+                ]
 
                 records = list(collection.find({}, {"_id": 0}))
 
             if not records:
-                raise ValueError("MongoDB collection returned zero records")
+                raise ValueError(
+                    "MongoDB collection returned zero records."
+                )
 
             df = pd.DataFrame(records)
 
             logging.info(
-                "[DATA INGESTION] MongoDB read successful | "
-                f"rows={len(df)}, columns={len(df.columns)}"
+                "[DATA INGESTION] MongoDB read successful | rows=%d cols=%d",
+                df.shape[0],
+                df.shape[1],
             )
 
             return df
 
         except Exception as e:
-            logging.exception("[DATA INGESTION] MongoDB read failed")
-            raise CustomerChurnException(e, sys)
+            logging.exception("[DATA INGESTION] MongoDB read failed.")
+            raise CustomerChurnException(e, sys) from e
 
-    # ------------------------------------------------------------------
-    # Cleaning
-    # ------------------------------------------------------------------
+    # =========================================================
+    # DATA CLEANING
+    # =========================================================
 
     def _clean_dataframe(self, df: pd.DataFrame) -> pd.DataFrame:
         """
-        Apply deterministic, logged cleaning logic.
+        Apply deterministic data cleaning logic.
+
+        Returns
+        -------
+        pd.DataFrame
+            Cleaned dataset.
         """
         try:
             initial_rows = len(df)
@@ -149,35 +226,37 @@ class DataIngestion:
 
             if df[self.target_column].isna().any():
                 raise ValueError(
-                    "Target column contains null values after cleaning"
+                    "Target column contains null values after cleaning."
                 )
 
             logging.info(
                 "[DATA INGESTION] Cleaning completed | "
-                f"rows_before={initial_rows}, rows_after={len(df)}"
+                "rows_before=%d rows_after=%d",
+                initial_rows,
+                len(df),
             )
 
             return df
 
         except Exception as e:
-            logging.exception("[DATA INGESTION] Data cleaning failed")
-            raise CustomerChurnException(e, sys)
+            logging.exception("[DATA INGESTION] Data cleaning failed.")
+            raise CustomerChurnException(e, sys) from e
 
-    # ------------------------------------------------------------------
-    # Splitting
-    # ------------------------------------------------------------------
+    # =========================================================
+    # DATA SPLITTING
+    # =========================================================
 
     def _split_data(
         self,
         df: pd.DataFrame,
     ) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
         """
-        Perform reproducible stratified split.
+        Perform reproducible stratified train/validation/test split.
         """
         try:
             if df[self.target_column].nunique() < 2:
                 raise ValueError(
-                    "Stratified split requires at least two target classes"
+                    "Stratified split requires at least two target classes."
                 )
 
             train_df, temp_df = train_test_split(
@@ -196,27 +275,28 @@ class DataIngestion:
 
             logging.info(
                 "[DATA INGESTION] Split completed | "
-                f"train={len(train_df)}, "
-                f"val={len(val_df)}, "
-                f"test={len(test_df)}"
+                "train=%d val=%d test=%d",
+                len(train_df),
+                len(val_df),
+                len(test_df),
             )
 
             return train_df, val_df, test_df
 
         except Exception as e:
-            logging.exception("[DATA INGESTION] Data split failed")
-            raise CustomerChurnException(e, sys)
+            logging.exception("[DATA INGESTION] Data split failed.")
+            raise CustomerChurnException(e, sys) from e
 
-    # ------------------------------------------------------------------
-    # Schema & Metadata
-    # ------------------------------------------------------------------
+    # =========================================================
+    # SCHEMA GENERATION
+    # =========================================================
 
     def _generate_schema(
         self,
         train_df: pd.DataFrame,
     ) -> Dict[str, Dict]:
         """
-        Generate schema strictly from training data.
+        Generate schema using training dataset.
         """
         schema: Dict[str, Dict] = {}
 
@@ -241,16 +321,14 @@ class DataIngestion:
 
         return schema
 
-    def _target_distribution(
-        self,
-        df: pd.DataFrame,
-    ) -> Dict[str, Any]:
+    # =========================================================
+    # METADATA
+    # =========================================================
+
+    def _target_distribution(self, df: pd.DataFrame) -> Dict[str, Any]:
         counts = df[self.target_column].value_counts(normalize=True)
 
-        return {
-            str(k): round(v, 4)
-            for k, v in counts.items()
-        }
+        return {str(k): round(v, 4) for k, v in counts.items()}
 
     def _generate_metadata(
         self,
@@ -261,7 +339,7 @@ class DataIngestion:
         test_df: pd.DataFrame,
     ) -> Dict:
         """
-        Generate experiment-comparable lineage metadata.
+        Generate experiment lineage metadata.
         """
         total = len(train_df) + len(val_df) + len(test_df)
 
@@ -308,13 +386,13 @@ class DataIngestion:
             "created_at_utc": datetime.now(timezone.utc).isoformat(),
         }
 
-    # ------------------------------------------------------------------
-    # Pipeline Entry Point
-    # ------------------------------------------------------------------
+    # =========================================================
+    # PIPELINE ENTRYPOINT
+    # =========================================================
 
     def initiate_data_ingestion(self) -> DataIngestionArtifact:
         """
-        Execute the data ingestion pipeline end-to-end.
+        Execute the full data ingestion pipeline.
         """
         try:
             logging.info("[DATA INGESTION PIPELINE] Started")
@@ -347,6 +425,7 @@ class DataIngestion:
                 val_df,
                 test_df,
             )
+
             write_json_file(self.config.metadata_file_path, metadata)
 
             artifact = DataIngestionArtifact(
@@ -357,11 +436,13 @@ class DataIngestion:
                 metadata_file_path=self.config.metadata_file_path,
             )
 
-            logging.info("[DATA INGESTION PIPELINE] Completed successfully")
+            logging.info(
+                "[DATA INGESTION PIPELINE] Completed successfully"
+            )
             logging.info(artifact)
 
             return artifact
 
         except Exception as e:
             logging.exception("[DATA INGESTION PIPELINE] Failed")
-            raise CustomerChurnException(e, sys)
+            raise CustomerChurnException(e, sys) from e

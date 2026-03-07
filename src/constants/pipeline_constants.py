@@ -46,8 +46,6 @@ S3_MODEL_REGISTRY_DIR_NAME: str = "model_registry"
 
 RANDOM_STATE: int = 42
 
-REFERENCE_SCHEMA: Path = Path("data_schema") / "schema.yaml"
-
 MODEL_REGISTRY_DIR: Path = Path("model_registry")
 MODEL_REGISTRY_METADATA_PATH: Path = MODEL_REGISTRY_DIR / "registry_metadata.json"
 
@@ -80,14 +78,6 @@ DATA_INGESTION_METADATA_FILE_NAME: str = "metadata.json"
 
 DATA_INGESTION_TRAIN_TEMP_SPLIT_RATIO: float = 0.30
 DATA_INGESTION_TEST_VAL_SPLIT_RATIO: float = 0.50
-
-
-# Environment Variables (validated elsewhere)
-DATA_INGESTION_DATABASE_NAME: str | None = os.getenv("MONGODB_DATABASE")
-
-DATA_INGESTION_COLLECTION_NAME: str | None = os.getenv("MONGODB_COLLECTION")
-
-DATA_INGESTION_MONGODB_URL: str | None = os.getenv("MONGODB_URL")
 
 
 # ==========================================================

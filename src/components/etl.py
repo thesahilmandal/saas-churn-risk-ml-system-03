@@ -1,15 +1,19 @@
 """
 ETL pipeline for Customer Churn data ingestion.
 
-Responsibilities:
-- Extract raw data from Kaggle
-- Apply lightweight, non-destructive transformations
-- Load cleaned data into MongoDB
-- Generate metadata for auditability and observability
+Responsibilities
+---------------
+1. Extract raw data from Kaggle
+2. Apply lightweight, non-destructive transformations
+3. Load cleaned data into MongoDB
+4. Generate metadata for observability and auditability
 
-NOTE:
-This ETL layer intentionally avoids feature engineering,
-label processing, and modeling logic.
+Important
+---------
+This ETL layer intentionally avoids:
+- Feature engineering
+- Label processing
+- Model-related logic
 """
 
 import os
@@ -38,42 +42,60 @@ class CustomerChurnETL:
     """
     Production-grade ETL orchestrator.
 
-    Pipeline:
+    Pipeline Flow
+    -------------
         Extract → Transform → Load → Metadata
 
-    Design goals:
-    - Deterministic
-    - Observable
-    - Fail-fast
-    - Maintainable
+    Design Principles
+    -----------------
+    - Deterministic execution
+    - Fail-fast behavior
+    - Observability via logging and metadata
+    - Modular, maintainable architecture
     """
 
-    # =========================================================
-    # INIT
-    # =========================================================
+    # ==========================================================
+    # INITIALIZATION
+    # ==========================================================
 
     def __init__(
         self,
         etl_config: ETLconfig,
         delete_old_data: bool = True,
     ) -> None:
+        """
+        Initialize ETL pipeline.
+
+        Parameters
+        ----------
+        etl_config : ETLconfig
+            Configuration object containing pipeline settings.
+        delete_old_data : bool
+            If True, existing records in the MongoDB collection
+            will be deleted before inserting new records.
+        """
         try:
             self.config = etl_config
             self.delete_old_data = delete_old_data
 
-            self.mongodb_url: str | None = os.getenv("MONGODB_URL")
-            self.database_name: str | None = os.getenv("MONGODB_DATABASE")
-            self.collection_name: str | None = os.getenv("MONGODB_COLLECTION")
-            self.data_source: str | None = os.getenv("DATA_SOURCE")
+            # MongoDB configuration
+            self.mongodb_url = self.config.database_url
+            self.database_name = self.config.database_name
+            self.collection_name = self.config.collection_name
 
-            self._validate_env_variables()
+            # Data source
+            self.data_source = self.config.data_source
 
+            self._validate_configuration()
+
+            # TLS certificate
             self.ca_file = certifi.where()
 
+            # Raw data directory
             self.raw_data_dir = Path(self.config.raw_data_dir)
             self.raw_data_dir.mkdir(parents=True, exist_ok=True)
 
-            # Single reusable Mongo client (connection pooling)
+            # MongoDB client (connection pooling enabled)
             self.client = pymongo.MongoClient(
                 self.mongodb_url,
                 tlsCAFile=self.ca_file,
@@ -86,38 +108,50 @@ class CustomerChurnETL:
 
         except Exception as e:
             logging.exception("[ETL INIT] Initialization failed.")
-            raise CustomerChurnException(e, sys)
+            raise CustomerChurnException(e, sys) from e
 
-    # =========================================================
-    # VALIDATION
-    # =========================================================
+    # ==========================================================
+    # CONFIG VALIDATION
+    # ==========================================================
 
-    def _validate_env_variables(self) -> None:
-        required = {
-            "MONGODB_URL": self.mongodb_url,
-            "MONGODB_DATABASE": self.database_name,
-            "MONGODB_COLLECTION": self.collection_name,
-            "DATA_SOURCE": self.data_source,
-        }
+    def _validate_configuration(self) -> None:
+        """
+        Validate required configuration values.
+        """
+        try:
+            required_config = {
+                "database_url": self.mongodb_url,
+                "database_name": self.database_name,
+                "collection_name": self.collection_name,
+                "data_source": self.data_source,
+            }
 
-        missing = [k for k, v in required.items() if not v]
+            missing = [k for k, v in required_config.items() if not v]
 
-        if missing:
-            raise EnvironmentError(
-                f"Missing environment variables: {missing}"
-            )
+            if missing:
+                raise EnvironmentError(
+                    f"Missing required configuration values: {missing}"
+                )
 
-    # =========================================================
+        except Exception as e:
+            raise CustomerChurnException(e, sys) from e
+
+    # ==========================================================
     # EXTRACT
-    # =========================================================
+    # ==========================================================
 
     def extract_data(self) -> pd.DataFrame:
         """
-        Download dataset from Kaggle and load the first CSV file found.
+        Download dataset from Kaggle and load the first CSV file.
+
+        Returns
+        -------
+        pd.DataFrame
+            Extracted dataset.
         """
         try:
             logging.info(
-                "[ETL EXTRACT] Starting Kaggle download | source=%s",
+                "[ETL EXTRACT] Starting Kaggle dataset download | source=%s",
                 self.data_source,
             )
 
@@ -138,19 +172,19 @@ class CustomerChurnETL:
                 timeout=300,
             )
 
-            logging.debug("[ETL EXTRACT] Kaggle CLI output captured.")
+            logging.debug("[ETL EXTRACT] Kaggle CLI execution completed.")
 
             csv_files = sorted(self.raw_data_dir.glob("*.csv"))
 
             if not csv_files:
                 raise FileNotFoundError(
-                    "No CSV files found after download."
+                    "No CSV files found after Kaggle download."
                 )
 
             df = pd.read_csv(csv_files[0])
 
             if df.empty:
-                raise ValueError("Extracted CSV is empty.")
+                raise ValueError("Extracted dataset is empty.")
 
             logging.info(
                 "[ETL EXTRACT] Completed | rows=%d cols=%d",
@@ -162,18 +196,34 @@ class CustomerChurnETL:
 
         except Exception as e:
             logging.exception("[ETL EXTRACT] Extraction failed.")
-            raise CustomerChurnException(e, sys)
+            raise CustomerChurnException(e, sys) from e
 
-    # =========================================================
+    # ==========================================================
     # TRANSFORM
-    # =========================================================
+    # ==========================================================
 
     def transform_data(
         self,
         df: pd.DataFrame,
     ) -> List[Dict[str, Any]]:
         """
-        Perform lightweight, non-destructive cleaning.
+        Perform lightweight, non-destructive transformations.
+
+        Steps
+        -----
+        - Strip whitespace from string columns
+        - Remove duplicate rows
+        - Add ingestion metadata
+
+        Parameters
+        ----------
+        df : pd.DataFrame
+            Raw dataset.
+
+        Returns
+        -------
+        List[Dict[str, Any]]
+            Cleaned records ready for database insertion.
         """
         try:
             logging.info("[ETL TRANSFORM] Starting transformation.")
@@ -181,11 +231,14 @@ class CustomerChurnETL:
             df_clean = df.copy()
             initial_rows = len(df_clean)
 
-            for col in df_clean.select_dtypes(include="object"):
-                df_clean[col] = df_clean[col].str.strip()
+            # Trim whitespace in string columns
+            for column in df_clean.select_dtypes(include="object"):
+                df_clean[column] = df_clean[column].str.strip()
 
+            # Remove duplicates
             df_clean = df_clean.drop_duplicates().reset_index(drop=True)
 
+            # Metadata fields
             df_clean["data_source"] = self.data_source
             df_clean["ingested_at_utc"] = datetime.now(
                 timezone.utc
@@ -203,54 +256,70 @@ class CustomerChurnETL:
 
         except Exception as e:
             logging.exception("[ETL TRANSFORM] Transformation failed.")
-            raise CustomerChurnException(e, sys)
+            raise CustomerChurnException(e, sys) from e
 
-    # =========================================================
+    # ==========================================================
     # LOAD
-    # =========================================================
+    # ==========================================================
 
     def load_data(
         self,
         records: List[Dict[str, Any]],
     ) -> int:
         """
-        Insert transformed records into MongoDB.
+        Insert records into MongoDB.
+
+        Parameters
+        ----------
+        records : List[Dict[str, Any]]
+            Transformed dataset records.
+
+        Returns
+        -------
+        int
+            Number of inserted documents.
         """
         if not records:
             logging.warning(
-                "[ETL LOAD] No records to insert. Skipping load."
+                "[ETL LOAD] No records available for insertion."
             )
             return 0
 
         try:
             logging.info(
-                "[ETL LOAD] Loading into MongoDB | db=%s collection=%s",
+                "[ETL LOAD] Loading records into MongoDB | db=%s collection=%s",
                 self.database_name,
                 self.collection_name,
             )
 
-            collection = self.client[
-                self.database_name
-            ][self.collection_name]
+            collection = self.client[self.database_name][
+                self.collection_name
+            ]
 
             if self.delete_old_data:
+                logging.info(
+                    "[ETL LOAD] Removing existing records from collection."
+                )
                 collection.delete_many({})
 
             result = collection.insert_many(records, ordered=True)
 
-            inserted = len(result.inserted_ids)
+            inserted_count = len(result.inserted_ids)
 
-            logging.info("[ETL LOAD] Completed | inserted=%d", inserted)
+            logging.info(
+                "[ETL LOAD] Completed | inserted=%d",
+                inserted_count,
+            )
 
-            return inserted
+            return inserted_count
 
         except Exception as e:
             logging.exception("[ETL LOAD] MongoDB insertion failed.")
-            raise CustomerChurnException(e, sys)
+            raise CustomerChurnException(e, sys) from e
 
-    # =========================================================
-    # METADATA
-    # =========================================================
+    # ==========================================================
+    # METADATA GENERATION
+    # ==========================================================
 
     def generate_metadata(
         self,
@@ -295,7 +364,7 @@ class CustomerChurnETL:
             )
 
             logging.info(
-                "[ETL METADATA] Written successfully | path=%s",
+                "[ETL METADATA] Metadata written successfully | path=%s",
                 self.config.metadata_file_path,
             )
 
@@ -303,24 +372,29 @@ class CustomerChurnETL:
             logging.exception(
                 "[ETL METADATA] Metadata generation failed."
             )
-            raise CustomerChurnException(e, sys)
+            raise CustomerChurnException(e, sys) from e
 
-    # =========================================================
-    # ORCHESTRATION
-    # =========================================================
+    # ==========================================================
+    # PIPELINE ORCHESTRATION
+    # ==========================================================
 
     def initiate_etl(self) -> ETLArtifact:
         """
         Execute the complete ETL pipeline.
+
+        Returns
+        -------
+        ETLArtifact
+            Artifact containing ETL output paths.
         """
         try:
             logging.info("[ETL PIPELINE] Execution started.")
 
             raw_df = self.extract_data()
             records = self.transform_data(raw_df)
-            inserted = self.load_data(records)
+            inserted_records = self.load_data(records)
 
-            self.generate_metadata(raw_df, inserted)
+            self.generate_metadata(raw_df, inserted_records)
 
             artifact = ETLArtifact(
                 raw_data_dir_path=self.config.raw_data_dir,
@@ -336,19 +410,25 @@ class CustomerChurnETL:
             return artifact
 
         except Exception as e:
-            logging.exception("[ETL PIPELINE] Pipeline failed.")
-            raise CustomerChurnException(e, sys)
+            logging.exception("[ETL PIPELINE] Pipeline execution failed.")
+            raise CustomerChurnException(e, sys) from e
 
+
+# ==========================================================
+# LOCAL TEST EXECUTION
+# ==========================================================
 
 if __name__ == "__main__":
     try:
         from src.entity.config_entity import TrainingPipelineConfig
 
         training_pipeline_config = TrainingPipelineConfig()
-        config = ETLconfig(training_pipeline_config)
-        etl = CustomerChurnETL(config)
+        etl_config = ETLconfig(training_pipeline_config)
+
+        etl = CustomerChurnETL(etl_config)
         artifact = etl.initiate_etl()
+
         print(artifact)
-        
+
     except Exception as e:
-        raise CustomerChurnException(e, sys)
+        raise CustomerChurnException(e, sys) from e

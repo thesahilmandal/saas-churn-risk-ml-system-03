@@ -2,9 +2,12 @@ import os
 import sys
 from datetime import datetime, timezone
 from typing import Optional
+from dotenv import load_dotenv
 
 from src.constants import pipeline_constants
 from src.exception import CustomerChurnException
+
+load_dotenv()
 
 
 class TrainingPipelineConfig:
@@ -17,7 +20,6 @@ class TrainingPipelineConfig:
         try:
             self.run_id = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
 
-            # Path broken across lines for readability (PEP 8 line length)
             self.artifact_name: str = (
                 pipeline_constants.ARTIFACT_DIR / "training_pipeline_runs"
             )
@@ -58,6 +60,11 @@ class ETLconfig:
                 self.etl_dir,
                 pipeline_constants.ETL_RAW_DATA_DIR_NAME,
             )
+
+            self.database_url: str = os.getenv("MONGODB_URL")
+            self.database_name: str = os.getenv("MONGODB_DATABASE")
+            self.collection_name: str = os.getenv("MONGODB_RAW_COLLECTION")
+            self.data_source: str = os.getenv("DATA_SOURCE")
 
         except Exception as e:
             raise CustomerChurnException(e, sys) from e
@@ -116,17 +123,9 @@ class DataIngestionConfig:
 
             self.random_state: int = pipeline_constants.RANDOM_STATE
 
-            self.database_name: str = (
-                pipeline_constants.DATA_INGESTION_DATABASE_NAME
-            )
-
-            self.collection_name: str = (
-                pipeline_constants.DATA_INGESTION_COLLECTION_NAME
-            )
-
-            self.database_url: str = (
-                pipeline_constants.DATA_INGESTION_MONGODB_URL
-            )
+            self.database_name: str = os.getenv("MONGODB_DATABASE")
+            self.collection_name: str = os.getenv("MONGODB_RAW_COLLECTION")
+            self.database_url: str = os.getenv("MONGODB_URL")
 
         except Exception as e:
             raise CustomerChurnException(e, sys) from e
@@ -156,7 +155,7 @@ class DataValidationConfig:
             )
 
             self.reference_schema_file_path: str = (
-                pipeline_constants.REFERENCE_SCHEMA
+                "data_schema/v1/schema.yaml"
             )
 
         except Exception as e:

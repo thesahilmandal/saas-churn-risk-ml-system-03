@@ -1,23 +1,25 @@
 # ==========================================
 # Python & Environments
 # ==========================================
-# Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
 *$py.class
+*.so
 
 # Virtual Environments
 .venv/
 venv/
 env/
 ENV/
-bin/
-lib/
-develop-eggs/
+
+# Python packaging
+build/
 dist/
+develop-eggs/
 downloads/
 eggs/
 .eggs/
+lib/
 lib64/
 parts/
 sdist/
@@ -30,63 +32,135 @@ wheels/
 # ==========================================
 # Machine Learning & Data
 # ==========================================
-# Data directories (standard naming)
+
+# Data directories
 data/
 datasets/
 raw_data/
-test_mongodb.py
-rough/
-main_0.py
+
+# Pipeline outputs
 artifacts/
 logs/
 model_registry/
-aws/
+online/
 
-# Model weights and serialized objects
-*.h5
+# Temporary experiments
+experiments/
+runs/
+mlruns/
+
+# MongoDB test scripts / scratch files
+rough/
+test_mongodb.py
+main_0.py
+
+# ==========================================
+# Model Artifacts
+# ==========================================
+
+# Serialized models
 *.pkl
+*.joblib
+*.model
+*.h5
 *.pth
 *.pt
 *.onnx
 *.pb
-*.joblib
 *.ckpt
 
-# TensorBoard logs
-logs/
+# TensorBoard
 tfevents*
+logs/
 
-# DVC (Data Version Control) - keep the .dvc files, ignore the cache
+# ==========================================
+# Large Files / Archives
+# ==========================================
+
+*.zip
+*.tar
+*.tar.gz
+*.tgz
+*.7z
+*.rar
+*.gz
+
+# AWS installer or downloads
+aws/
+awscliv2.zip
+
+# ==========================================
+# Cloud & Credentials
+# ==========================================
+
+.env
+.env.*
+*.pem
+*.key
+*.crt
+*.p12
+*.pfx
+
+# AWS credentials
+.aws/
+credentials
+config
+
+# GCP
+gcloud.json
+service_account.json
+
+# ==========================================
+# DVC
+# ==========================================
+
 .dvc/cache/
 
 # ==========================================
-# Jupyter Notebooks
+# Jupyter
 # ==========================================
-.ipynb_checkpoints
+
+.ipynb_checkpoints/
 */.ipynb_checkpoints/*
 
 # ==========================================
 # IDEs & Editors
 # ==========================================
-# VS Code
-.vscode/
+
+# VSCode
+.vscode/*
 !.vscode/settings.json
 !.vscode/tasks.json
 !.vscode/launch.json
 !.vscode/extensions.json
 
-# PyCharm / IntelliJ
+# PyCharm
 .idea/
 
+# ==========================================
 # System Files
+# ==========================================
+
 .DS_Store
 Thumbs.db
+*.swp
+*.swo
 
 # ==========================================
-# Secrets & Configuration
+# Docker
 # ==========================================
-.env
-.flaskenv
+
+docker-compose.override.yml
+*.log
+
+# ==========================================
+# Misc
+# ==========================================
+
+coverage/
+htmlcov/
+.cache/
+.pytest_cache/
+
+# Local scripts
 secrets.json
-*.pem
-*.key
