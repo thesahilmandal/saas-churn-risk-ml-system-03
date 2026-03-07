@@ -1,6 +1,6 @@
 {
     "pipeline_version": "1.0.0",
-    "created_at_utc": "2026-03-07T08:30:28.086230+00:00",
+    "created_at_utc": "2026-03-07T11:04:04.188735+00:00",
     "numerical_features": {
         "tenure": {
             "mean": 32.30870980870981,
@@ -239,5 +239,5 @@
         ],
         "output_feature_count": 30
     },
-    "baseline_hash": "54d3996a65d7e758997ccd0eb8b46d6869e211bc2819253b9e063e5e3d4d9ec8"
+    "baseline_hash": "9c82de958ef4151152df1063ccb8b7c18679b7b25e0c9fe33161c4b1d16af3be"
 }

@@ -154,9 +154,7 @@ class DataValidationConfig:
                 pipeline_constants.DATA_VALIDATION_REPORT_FILE_NAME,
             )
 
-            self.reference_schema_file_path: str = (
-                "data_schema/v1/schema.yaml"
-            )
+            self.reference_schema_file_path: str = pipeline_constants.REFERENCE_SCHEMA_PATH
 
         except Exception as e:
             raise CustomerChurnException(e, sys) from e

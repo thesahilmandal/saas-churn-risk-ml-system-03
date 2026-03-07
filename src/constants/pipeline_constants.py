@@ -45,6 +45,7 @@ S3_ARTIFACT_DIR_NAME: str = "artifacts"
 S3_MODEL_REGISTRY_DIR_NAME: str = "model_registry"
 
 RANDOM_STATE: int = 42
+REFERENCE_SCHEMA_PATH: str = "data_schema/v1/schema.yaml"
 
 MODEL_REGISTRY_DIR: Path = Path("model_registry")
 MODEL_REGISTRY_METADATA_PATH: Path = MODEL_REGISTRY_DIR / "registry_metadata.json"

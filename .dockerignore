@@ -1,0 +1,78 @@
+# ==========================================
+# Git & Docker Configuration
+# ==========================================
+.git
+.gitignore
+.dockerignore
+Dockerfile
+docker-compose*.yml
+
+# ==========================================
+# Python Cache & Environments
+# ==========================================
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.venv/
+venv/
+env/
+ENV/
+build/
+dist/
+*.egg-info/
+.pytest_cache/
+htmlcov/
+.cache/
+
+# ==========================================
+# Local ML Artifacts & Data
+# (Dynamically pulled from S3 during lifespan startup)
+# ==========================================
+artifacts/
+model_registry/
+logs/
+online/
+data/
+datasets/
+raw_data/
+experiments/
+runs/
+mlruns/
+*.pkl
+*.joblib
+*.h5
+*.model
+
+# ==========================================
+# Secrets & Credentials (CRITICAL)
+# (Never bake secrets into a Docker image context)
+# ==========================================
+.env
+.env.*
+.aws/
+credentials
+config
+gcloud.json
+service_account.json
+secrets.json
+*.pem
+*.key
+
+# ==========================================
+# IDEs, Jupyter, & Scratch Files
+# ==========================================
+.vscode/
+.idea/
+.ipynb_checkpoints/
+rough/
+test_mongodb.py
+main_0.py
+
+# ==========================================
+# System Files & Archives
+# ==========================================
+.DS_Store
+Thumbs.db
+*.zip
+*.tar.gz
