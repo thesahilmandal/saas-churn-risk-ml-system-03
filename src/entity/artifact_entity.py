@@ -89,16 +89,11 @@ class DataTransformationArtifact:
 
     metadata_file_path (str)
         Path to transformation metadata artifact.
-
-    monitoring_baseline_file_path (str)
-        Path to monitoring baseline artifact used for
-        drift detection and observability pipelines.
     """
 
     tree_preprocessor_file_path: str
     linear_preprocessor_file_path: str
     metadata_file_path: str
-    monitoring_baseline_file_path: str
 
     def __str__(self) -> str:
         """
@@ -112,8 +107,6 @@ class DataTransformationArtifact:
             f"{self.linear_preprocessor_file_path}\n"
             f"  metadata_file_path            = "
             f"{self.metadata_file_path}\n"
-            f"  monitoring_baseline_file_path = "
-            f"{self.monitoring_baseline_file_path}\n"
             ")"
         )
 

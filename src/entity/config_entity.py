@@ -195,12 +195,6 @@ class DataTransformationConfig:
                 pipeline_constants.DATA_TRANSFORMATION_METADATA_FILE_NAME,
             )
 
-            self.monitoring_baseline_file_path: str = os.path.join(
-                self.data_transformation_dir,
-                pipeline_constants
-                .DATA_TRANSFORMATION_MONITORING_BASELINE_FILE_NAME,
-            )
-
         except Exception as e:
             raise CustomerChurnException(e, sys) from e
 
@@ -318,7 +312,7 @@ class ModelRegistryConfig:
             self.registry_dir: str = (
                 pipeline_constants.MODEL_REGISTRY_DIR
             )
-
+            
             self.registry_metadata_path: str = (
                 pipeline_constants.MODEL_REGISTRY_METADATA_PATH
             )
