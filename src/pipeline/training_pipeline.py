@@ -172,11 +172,18 @@ class TrainingPipeline:
 
     def start_model_registry(
         self,
+        ingestion_artifact: DataIngestionArtifact,
+        trainer_artifact: ModelTrainerArtifact,
         evaluation_artifact: ModelEvaluationArtifact,
     ):
         def run():
             config = ModelRegistryConfig()
-            registry = ModelRegistry(config, evaluation_artifact)
+            registry = ModelRegistry(
+                config,
+                ingestion_artifact,
+                trainer_artifact,
+                evaluation_artifact
+            )
             return registry.initiate_model_registry()
 
         return self._execute_stage("Stage 7: Model Registry", run)
@@ -215,6 +222,8 @@ class TrainingPipeline:
             )
 
             registry_artifact = self.start_model_registry(
+                ingestion_artifact,
+                trainer_artifact,
                 evaluation_artifact
             )
 
