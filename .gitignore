@@ -43,6 +43,7 @@ artifacts/
 logs/
 model_registry/
 online/
+project_structure.txt
 
 # Temporary experiments
 experiments/

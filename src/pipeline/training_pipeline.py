@@ -4,13 +4,13 @@ from typing import Any
 
 import requests
 
-from src.training_pipeline_components.data_ingestion import DataIngestion
-from src.training_pipeline_components.data_transformation import DataTransformation
-from src.training_pipeline_components.data_validation import DataValidation
-from src.training_pipeline_components.etl import CustomerChurnETL
-from src.training_pipeline_components.model_evaluation import ModelEvaluation
-from src.training_pipeline_components.model_registry import ModelRegistry
-from src.training_pipeline_components.model_training import ModelTrainer
+from src.training_components.data_ingestion import DataIngestion
+from src.training_components.data_transformation import DataTransformation
+from src.training_components.data_validation import DataValidation
+from src.training_components.etl import CustomerChurnETL
+from src.training_components.model_evaluation import ModelEvaluation
+from src.training_components.model_registry import ModelRegistry
+from src.training_components.model_training import ModelTrainer
 
 from src.constants.pipeline_constants import (
     ARTIFACT_DIR,

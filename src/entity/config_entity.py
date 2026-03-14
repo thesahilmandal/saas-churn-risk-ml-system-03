@@ -21,7 +21,7 @@ class TrainingPipelineConfig:
             self.run_id = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
 
             self.artifact_name: str = (
-                pipeline_constants.ARTIFACT_DIR / "training_pipeline_runs"
+                pipeline_constants.ARTIFACT_DIR / "training_pipeline"
             )
 
             self.artifact_dir: str = os.path.join(
@@ -326,7 +326,7 @@ class ModelRegistryConfig:
 # ============================================================
 
 
-class ModelMonitoringConfig:
+class MonitoringConfig:
     """Configuration for monitoring pipeline."""
 
     def __init__(self) -> None:
@@ -335,48 +335,65 @@ class ModelMonitoringConfig:
                 "%Y%m%d_%H%M%S"
             )
 
-            self.artifact_dir = (
-                pipeline_constants.ARTIFACT_DIR
-                / "model_monitoring_runs"
-                / self.run_id
+            self.monitoring_dir: str = os.path.join(
+                pipeline_constants.ARTIFACT_DIR,
+                pipeline_constants.MONITORING_DIR_NAME,
+                self.run_id
             )
+            
+            self.baseline_download_dir: str = os.path.join(self.monitoring_dir, "baseline")
+            self.telemetry_data_dir: str = os.path.join(self.monitoring_dir, "telemetry_data")
+            self.drift_report_dir: str = os.path.join(self.monitoring_dir, "drift_report")
 
-            self.psi_threshold: float = 0.2
-            self.drifted_feature_ratio_threshold: float = 0.3
-            self.monitoring_sample_size: int = 1000
-            self.strict_mode: bool = True
+            self.telemetry_csv_path: str = os.path.join(self.telemetry_data_dir, "telemetry_snapshot.csv")
+            self.baseline_path: str = os.path.join(self.baseline_download_dir, "baseline.json")
+            self.drift_report_path: str = os.path.join(self.drift_report_dir, "drift_report.json")
+            self.trigger_metadata_path: str = os.path.join(self.monitoring_dir, "retraining_trigger.json")
 
+            self.data_window_days: int = pipeline_constants.MONITORING_DATA_WINDOW_DAYS
+            self.min_row_required: int = pipeline_constants.MONITORING_MIN_ROWS_REQUIRED
+            self.num_drift_threshold: float = pipeline_constants.MONITORING_NUMERICAL_DRIFT_THRESHOLD
+            self.cat_drift_threshold: float = pipeline_constants.MONITORING_CATEGORICAL_DRIFT_THRESHOLD
+            self.cooldown_days: int = pipeline_constants.MONITORING_RETRAINING_COOLDOWN_DAYS
         except Exception as e:
             raise CustomerChurnException(e, sys) from e
+        
 
 
-# ============================================================
-# Orchestrator Config
-# ============================================================
 
-
-class OrchestratorConfig:
-    """Configuration for pipeline orchestrator."""
-
-    def __init__(self) -> None:
+class MonitoringConfig:
+    """
+    Configuration for the Monitoring and Continual Learning Pipeline.
+    Constructs deterministic paths for drift analysis artifacts.
+    """
+    def __init__(self):
         try:
-            self.run_id = datetime.now(timezone.utc).strftime(
-                "%Y%m%d_%H%M%S"
-            )
+            self.run_id = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
 
-            self.artifact_dir = (
-                pipeline_constants.ARTIFACT_DIR
-                / "orchestrator_runs"
-                / self.run_id
+            # Base monitoring directory
+            self.monitoring_dir: str = os.path.join(
+                pipeline_constants.ARTIFACT_DIR,
+                pipeline_constants.MONITORING_DIR_NAME,
+                self.run_id
             )
-
-            self.metadata_path = (
-                self.artifact_dir / "run_metadata.json"
-            )
-
-            self.monitoring_snapshot_path = (
-                self.artifact_dir / "monitoring_snapshot.json"
-            )
+            
+            # Sub-directories for organized artifact storage
+            self.baseline_download_dir: str = os.path.join(self.monitoring_dir, "baseline")
+            self.telemetry_data_dir: str = os.path.join(self.monitoring_dir, "telemetry_data")
+            self.drift_report_dir: str = os.path.join(self.monitoring_dir, "drift_report")
+            
+            # File paths
+            self.telemetry_csv_path: str = os.path.join(self.telemetry_data_dir, "telemetry_snapshot.csv")
+            self.baseline_path: str = os.path.join(self.baseline_download_dir, "baseline.json")
+            self.drift_report_path: str = os.path.join(self.drift_report_dir, "drift_report.json")
+            self.trigger_metadata_path: str = os.path.join(self.monitoring_dir, "retraining_trigger.json")
+            
+            # System Rules mapped from constants
+            self.data_window_days: int = pipeline_constants.MONITORING_DATA_WINDOW_DAYS
+            self.min_rows_required: int = pipeline_constants.MONITORING_MIN_ROWS_REQUIRED
+            self.num_drift_threshold: float = pipeline_constants.MONITORING_NUMERICAL_DRIFT_THRESHOLD
+            self.cat_drift_threshold: float = pipeline_constants.MONITORING_CATEGORICAL_DRIFT_THRESHOLD
+            self.cooldown_days: int = pipeline_constants.MONITORING_RETRAINING_COOLDOWN_DAYS
 
         except Exception as e:
             raise CustomerChurnException(e, sys)

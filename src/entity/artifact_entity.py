@@ -154,49 +154,35 @@ class ModelEvaluationArtifact:
         )
 
 
-@dataclass(frozen=True)
-class ModelMonitoringArtifact:
-    """
-    Artifact generated after Model Monitoring stage.
+# ==============================================================================
+# MONITORING PIPELINE ARTIFACTS
+# ==============================================================================
 
-    Responsibilities
-    ----------------
-    - Provide structured reference to monitoring outputs
-    - Encapsulate drift results and retraining decision
-    - Maintain immutability for deterministic lineage
+@dataclass
+class BaselineFetchArtifact:
+    """Artifact produced by the Baseline Fetcher component."""
+    baseline_file_path: str
+    champion_model_version: str
 
-    Attributes
-    ----------
-    artifact_dir (str)
-        Timestamped monitoring directory.
 
-    report_file_path (str)
-        Path to drift report JSON.
+@dataclass
+class TelemetryExtractionArtifact:
+    """Artifact produced by the Telemetry Extractor component."""
+    telemetry_data_path: str
+    extracted_rows: int
+    window_start_date: str
+    window_end_date: str
 
-    metadata_file_path (str)
-        Path to monitoring metadata JSON.
 
-    retraining_flag_file_path (str)
-        Path to retraining decision JSON.
+@dataclass
+class DriftAnalysisArtifact:
+    """Artifact produced by the Drift Analyzer & Report Generator."""
+    drift_report_file_path: str
+    drift_detected: bool
 
-    retraining_required (bool)
-        Boolean flag indicating whether retraining is required.
-    """
 
-    artifact_dir: str
-    report_file_path: str
-    metadata_file_path: str
-    retraining_flag_file_path: str
-    retraining_required: bool
-
-    def __str__(self) -> str:
-        return (
-            "\nModelMonitoringArtifact(\n"
-            f"  artifact_dir              = {self.artifact_dir}\n"
-            f"  report_file_path          = {self.report_file_path}\n"
-            f"  metadata_file_path        = {self.metadata_file_path}\n"
-            f"  retraining_flag_file_path = "
-            f"{self.retraining_flag_file_path}\n"
-            f"  retraining_required       = {self.retraining_required}\n"
-            ")"
-        )
+@dataclass
+class RetrainingTriggerArtifact:
+    """Artifact produced by the Retraining Trigger component."""
+    should_retrain: bool
+    trigger_metadata_path: str

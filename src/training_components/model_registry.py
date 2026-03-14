@@ -22,7 +22,7 @@ from src.entity.artifact_entity import (
     ModelTrainerArtifact,
 )
 from src.entity.config_entity import ModelRegistryConfig
-from src.training_pipeline_components.baseline_generator import BaselineGenerator
+from src.training_components.baseline_generator import BaselineGenerator
 from src.exception import CustomerChurnException
 from src.logging import logging
 from src.utils.main_utils import (

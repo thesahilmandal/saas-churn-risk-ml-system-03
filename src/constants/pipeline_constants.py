@@ -172,3 +172,20 @@ MODEL_EVALUATION_METADATA_FILE_NAME: str = "evaluation_metadata.json"
 MODEL_EVALUATION_DECISION_THRESHOLD: float = 0.50
 MODEL_EVALUATION_RECALL_TOLERANCE: float = 0.005
 MODEL_EVALUATION_MIN_IMPROVEMENT: float = 0.01
+
+
+# ==============================================================================
+# MONITORING AND CONTINUAL LEARNING CONSTANTS
+# ==============================================================================
+MONITORING_DIR_NAME: str = "monitoring_pipeline"
+
+# Data Extraction
+MONITORING_DATA_WINDOW_DAYS: int = 7
+MONITORING_MIN_ROWS_REQUIRED: int = 100
+
+# Drift Detection Thresholds (e.g., 0.05 = 5% distance)
+MONITORING_NUMERICAL_DRIFT_THRESHOLD: float = 0.05
+MONITORING_CATEGORICAL_DRIFT_THRESHOLD: float = 0.05
+
+# Retraining Safeguards
+MONITORING_RETRAINING_COOLDOWN_DAYS: int = 7
