@@ -45,7 +45,7 @@ class TelemetryLogger:
         try:
             mongo_url = os.getenv("MONGODB_URL")
             db_name = os.getenv("MONGODB_DATABASE")
-            pred_collection = os.getenv("MONGODB_PREDICTION_LOGGING_COLLECTION")
+            pred_collection = os.getenv("MONGODB_PREDICTION_COLLECTION")
             
             # Note: Using the exact spelling from your .env file
             dlq_collection = os.getenv("MONGODB_DLQ_COLLETION") 

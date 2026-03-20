@@ -3,12 +3,13 @@ Artifact Handler (Model Manager) for the Inference Service.
 
 Responsibilities:
 - Implement a thread-safe Singleton to prevent memory leaks in FastAPI.
-- Synchronize the Model Registry from S3 to the local environment.
-- Read immutable metadata to resolve the current champion model pointer.
+- Fetch immutable metadata from S3 to resolve the current champion model pointer.
+- Download ONLY the active champion model to minimize I/O and startup latency.
 - Cache the scikit-learn pipeline (Preprocessor + Model) in RAM.
 - Provide a safe hot-reload mechanism.
 """
 
+import os
 import sys
 import threading
 from typing import Any, Dict, Optional, Tuple
@@ -19,7 +20,6 @@ from sklearn.pipeline import Pipeline
 from src.cloud.s3_syncer import S3Sync
 from src.constants.pipeline_constants import (
     MODEL_REGISTRY_DIR,
-    MODEL_REGISTRY_METADATA_PATH,
     S3_BUCKET_NAME,
     S3_MODEL_REGISTRY_DIR_NAME,
 )
@@ -57,10 +57,14 @@ class ModelManager:
             try:
                 self.s3_sync = S3Sync()
                 
-                # Reconstruct the S3 URI based on your constants
-                self.s3_registry_uri = f"s3://{S3_BUCKET_NAME}/{S3_MODEL_REGISTRY_DIR_NAME}"
-                self.local_registry_dir = str(MODEL_REGISTRY_DIR)
-                self.metadata_path = str(MODEL_REGISTRY_METADATA_PATH)
+                # S3 URIs
+                self.s3_metadata_uri = f"s3://{S3_BUCKET_NAME}/{S3_MODEL_REGISTRY_DIR_NAME}/registry_metadata.json"
+                
+                # Local Cache Paths
+                self.local_cache_dir = str(MODEL_REGISTRY_DIR / "champion_cache")
+                self.local_metadata_path = os.path.join(self.local_cache_dir, "registry_metadata.json")
+                
+                os.makedirs(self.local_cache_dir, exist_ok=True)
                 
                 # In-memory cache
                 self.champion_pipeline: Optional[Pipeline] = None
@@ -77,27 +81,24 @@ class ModelManager:
     # ARTIFACT RETRIEVAL & CACHING
     # ==========================================================
 
-    def _sync_registry_from_s3(self) -> None:
+    def _fetch_metadata_from_s3(self) -> None:
         """
-        Pull the latest Model Registry folder from AWS S3.
+        Download only the registry metadata file from S3 to resolve the champion pointer.
         """
-        logging.info(
-            f"[MODEL MANAGER] Syncing registry from S3: {self.s3_registry_uri} "
-            f"-> {self.local_registry_dir}"
-        )
-        self.s3_sync.sync_folder_from_s3(
-            folder=self.local_registry_dir,
-            aws_bucket_url=self.s3_registry_uri,
+        logging.info(f"[MODEL MANAGER] Fetching registry metadata from S3: {self.s3_metadata_uri}")
+        self.s3_sync.download_file(
+            s3_uri=self.s3_metadata_uri,
+            local_path=self.local_metadata_path,
         )
 
-    def _get_champion_metadata(self) -> Tuple[str, str]:
+    def _resolve_champion_pointer(self) -> Tuple[str, str]:
         """
-        Read the registry metadata to resolve the current production model.
+        Parse the local metadata to find the active production version and its S3 path.
         
         Returns:
-            Tuple containing (version_name, model_file_path)
+            Tuple containing (version_name, s3_model_uri)
         """
-        metadata = read_json_file(self.metadata_path)
+        metadata = read_json_file(self.local_metadata_path)
         
         version = metadata.get("current_production_version")
         if not version:
@@ -107,28 +108,51 @@ class ModelManager:
         if not version_info:
             raise ValueError(f"Metadata missing for champion version: {version}")
 
-        model_path = version_info.get("model_path")
-        if not model_path:
+        relative_model_path = version_info.get("model_path")
+        if not relative_model_path:
             raise ValueError(f"No model path defined for version {version}")
 
-        return version, model_path
+        # Construct exact S3 URI for the specific model file
+        relative_model_path = relative_model_path.lstrip("./\\")
+        s3_model_uri = f"s3://{S3_BUCKET_NAME}/{relative_model_path}"
+
+        return version, s3_model_uri
+
+    def _fetch_model_from_s3(self, version: str, s3_model_uri: str) -> str:
+        """
+        Download the specific champion model from S3 to the local cache.
+        """
+        local_model_path = os.path.join(self.local_cache_dir, version, "model.pkl")
+        
+        logging.info(f"[MODEL MANAGER] Downloading champion model {version} from S3: {s3_model_uri}")
+        self.s3_sync.download_file(
+            s3_uri=s3_model_uri,
+            local_path=local_model_path,
+        )
+        
+        return local_model_path
 
     def load_champion_model(self) -> None:
         """
-        Full sequence to sync S3, resolve the pointer, and load the `.pkl` into RAM.
-        This should be called during the FastAPI startup event.
+        Optimized sequence to fetch metadata, resolve the pointer, download the specific 
+        champion model, and load the `.pkl` into RAM.
         """
         try:
             with self._lock:
-                logging.info("[MODEL MANAGER] Loading Champion Model...")
+                logging.info("[MODEL MANAGER] Starting optimized champion model load sequence...")
                 
-                self._sync_registry_from_s3()
-                version, model_path = self._get_champion_metadata()
+                # 1. Get the Single Source of Truth
+                self._fetch_metadata_from_s3()
                 
-                logging.info(f"[MODEL MANAGER] Resolved champion version: {version} at {model_path}")
+                # 2. Find out what the current model is
+                version, s3_model_uri = self._resolve_champion_pointer()
+                logging.info(f"[MODEL MANAGER] Resolved champion version: {version}")
                 
-                # Load the bundled preprocessor+model pipeline into RAM
-                self.champion_pipeline = load_object(model_path)
+                # 3. Download ONLY that model
+                local_model_path = self._fetch_model_from_s3(version, s3_model_uri)
+                
+                # 4. Load the bundled preprocessor+model pipeline into RAM
+                self.champion_pipeline = load_object(local_model_path)
                 self.current_version = version
                 
                 logging.info(f"[MODEL MANAGER] Successfully loaded version {version} into memory.")

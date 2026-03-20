@@ -1,7 +1,10 @@
 """
-Model Registry Pipeline (Production-Grade, Registry-Only Architecture)
+Model Registry Pipeline (Production-Grade, S3-Backed Architecture)
 
 Promotes approved models into an immutable model registry.
+Synchronizes with an S3-backed single source of truth to prevent
+version collisions across distributed training runs, and immediately
+pushes updates to S3 to guarantee state consistency.
 """
 
 import hashlib
@@ -15,37 +18,44 @@ from typing import Any, Dict, Optional
 
 import pandas as pd
 
-from src.constants.pipeline_constants import TARGET_COLUMN
+from src.cloud.s3_syncer import S3Sync
+from src.constants.pipeline_constants import (
+    S3_BUCKET_NAME,
+    S3_MODEL_REGISTRY_DIR_NAME,
+    TARGET_COLUMN,
+)
 from src.entity.artifact_entity import (
-    ModelEvaluationArtifact,
     DataIngestionArtifact,
+    ModelEvaluationArtifact,
     ModelTrainerArtifact,
 )
 from src.entity.config_entity import ModelRegistryConfig
-from src.training_components.baseline_generator import BaselineGenerator
 from src.exception import CustomerChurnException
 from src.logging import logging
+from src.training_components.baseline_generator import BaselineGenerator
 from src.utils.main_utils import (
+    load_object,
+    read_csv_file,
     read_json_file,
     write_json_file,
-    read_csv_file,
-    load_object,
 )
 
 
 class ModelRegistry:
     """
-    Production-grade Model Registry.
+    Production-grade Model Registry utilizing S3 as the Single Source of Truth.
 
     Responsibilities
     ----------------
-    - Register approved models
-    - Maintain immutable version directories
-    - Store monitoring artifacts
-    - Maintain registry metadata
+    - Fetch remote registry metadata to ensure version consistency
+    - Register newly approved models
+    - Maintain immutable version directories locally
+    - Store monitoring artifacts (baselines, feature importance)
+    - Maintain and update registry metadata safely
+    - Immediately sync the updated local registry back to S3
     """
 
-    PIPELINE_VERSION = "1.0.0"
+    PIPELINE_VERSION = "2.0.0"
 
     # ==========================================================
     # INITIALIZATION
@@ -61,22 +71,24 @@ class ModelRegistry:
         """Initialize Model Registry."""
 
         try:
-            logging.info("Initializing Model Registry")
+            logging.info("[MODEL REGISTRY INIT] Initializing")
 
             self.config = config
             self.ingestion_artifact = ingestion_artifact
             self.trainer_artifact = trainer_artifact
             self.evaluation_artifact = evaluation_artifact
+            
+            self.s3_sync = S3Sync()
 
             os.makedirs(self.config.registry_dir, exist_ok=True)
 
             logging.info(
-                "Model Registry initialized | registry_dir=%s",
+                "[MODEL REGISTRY INIT] Initialized | registry_dir=%s",
                 self.config.registry_dir,
             )
 
         except Exception as exc:
-            logging.exception("Model Registry initialization failed")
+            logging.exception("[MODEL REGISTRY INIT] Failed")
             raise CustomerChurnException(exc, sys) from exc
 
     # ==========================================================
@@ -84,10 +96,9 @@ class ModelRegistry:
     # ==========================================================
 
     def _initialize_metadata(self) -> Dict[str, Any]:
-        """Create initial metadata structure."""
-
+        """Create initial metadata structure for a cold start."""
         return {
-            "registry_version": "1.0",
+            "registry_version": "2.0",
             "current_production_version": None,
             "registered_versions": [],
             "versions_metadata": {},
@@ -97,17 +108,32 @@ class ModelRegistry:
         }
 
     def _load_registry_metadata(self) -> Dict[str, Any]:
-        """Load registry metadata or initialize new registry."""
-
-        if not os.path.exists(self.config.registry_metadata_path):
-            logging.info("Registry metadata not found. Initializing.")
+        """
+        Load registry metadata directly from S3 to ensure distributed consistency.
+        Falls back to initialization if S3 metadata does not exist (Cold Start).
+        """
+        s3_metadata_uri = f"s3://{S3_BUCKET_NAME}/{S3_MODEL_REGISTRY_DIR_NAME}/registry_metadata.json"
+        
+        try:
+            logging.info("[MODEL REGISTRY] Fetching remote metadata from S3: %s", s3_metadata_uri)
+            self.s3_sync.download_file(s3_metadata_uri, self.config.registry_metadata_path)
+            
+            if os.path.exists(self.config.registry_metadata_path):
+                return read_json_file(self.config.registry_metadata_path)
+            
+            logging.info("[MODEL REGISTRY] Remote metadata not found. Initializing new registry.")
             return self._initialize_metadata()
 
-        return read_json_file(self.config.registry_metadata_path)
+        except CustomerChurnException:
+            # S3 file doesn't exist yet (first run) or permission issue
+            logging.warning("[MODEL REGISTRY] Failed to fetch remote metadata (Cold Start). Initializing new registry.")
+            return self._initialize_metadata()
+        except Exception as exc:
+            logging.exception("[MODEL REGISTRY] Unexpected error fetching metadata.")
+            raise CustomerChurnException(exc, sys) from exc
 
     def _atomic_write_metadata(self, metadata: Dict[str, Any]) -> None:
-        """Safely write metadata to disk using atomic operation."""
-
+        """Safely write metadata to local disk using an atomic operation."""
         try:
             temp_path = f"{self.config.registry_metadata_path}.tmp"
 
@@ -117,9 +143,10 @@ class ModelRegistry:
                 json.dump(metadata, file, indent=4)
 
             os.replace(temp_path, self.config.registry_metadata_path)
+            logging.info("[MODEL REGISTRY] Local metadata updated atomically.")
 
         except Exception as exc:
-            logging.exception("Failed writing registry metadata")
+            logging.exception("[MODEL REGISTRY] Failed writing local registry metadata")
             raise CustomerChurnException(exc, sys) from exc
 
     # ==========================================================
@@ -128,8 +155,7 @@ class ModelRegistry:
 
     @staticmethod
     def _compute_checksum(file_path: str) -> str:
-        """Compute SHA256 checksum."""
-
+        """Compute SHA256 checksum to ensure artifact integrity."""
         sha256 = hashlib.sha256()
 
         with open(file_path, "rb") as file:
@@ -139,8 +165,7 @@ class ModelRegistry:
         return sha256.hexdigest()
 
     def _get_next_version(self, metadata: Dict[str, Any]) -> str:
-        """Determine next version identifier."""
-
+        """Determine next version identifier based on SSOT metadata."""
         versions = metadata.get("registered_versions", [])
 
         if not versions:
@@ -158,10 +183,9 @@ class ModelRegistry:
         version_dir: str,
         train_df: pd.DataFrame,
     ) -> str:
-        """Generate dataset baseline."""
-
+        """Generate dataset statistical baseline for data drift monitoring."""
         try:
-            logging.info("Generating baseline report")
+            logging.info("[MODEL REGISTRY] Generating baseline report")
 
             generator = BaselineGenerator()
             baseline = generator.generate_baseline_report(train_df)
@@ -172,20 +196,16 @@ class ModelRegistry:
             return path
 
         except Exception as exc:
-            logging.exception("Baseline generation failed")
+            logging.exception("[MODEL REGISTRY] Baseline generation failed")
             raise CustomerChurnException(exc, sys) from exc
 
     def _generate_and_store_metrics(self, version_dir: str) -> str:
-        """Store evaluation metrics."""
-
+        """Store evaluation metrics for the approved candidate."""
         try:
             if not self.evaluation_artifact:
                 raise ValueError("Evaluation artifact required.")
 
-            report = read_json_file(
-                self.evaluation_artifact.evaluation_report_path
-            )
-
+            report = read_json_file(self.evaluation_artifact.evaluation_report_path)
             best_model = report["best_model"]
             metrics = report["candidate_results"][best_model]["metrics"]
 
@@ -200,14 +220,13 @@ class ModelRegistry:
             return path
 
         except Exception as exc:
-            logging.exception("Metrics generation failed")
+            logging.exception("[MODEL REGISTRY] Metrics generation failed")
             raise CustomerChurnException(exc, sys) from exc
 
     def _generate_and_store_requirements(self, version_dir: str) -> str:
-        """Capture Python environment."""
-
+        """Capture Python environment requirements for reproducibility."""
         try:
-            logging.info("Capturing environment requirements")
+            logging.info("[MODEL REGISTRY] Capturing environment requirements")
 
             path = os.path.join(version_dir, "requirements.txt")
 
@@ -223,7 +242,7 @@ class ModelRegistry:
             return path
 
         except subprocess.CalledProcessError as exc:
-            logging.exception("pip freeze failed")
+            logging.exception("[MODEL REGISTRY] pip freeze failed")
             raise CustomerChurnException(exc, sys) from exc
 
     def _generate_and_store_feature_importance(self, version_dir: str, train_df: pd.DataFrame) -> str:
@@ -255,23 +274,20 @@ class ModelRegistry:
             feature_names = []
             if preprocessor is not None:
                 try:
-                    # FIX: Cast the numpy array to a standard Python list
                     feature_names = list(preprocessor.get_feature_names_out())
                 except Exception as e:
                     logging.warning(f"[MODEL REGISTRY] Could not extract names from preprocessor: {e}")
-                    feature_names = [] # Reset to empty list on failure
+                    feature_names = []
             
             # Fallback if no preprocessor or extraction failed
-            # Now len() and boolean checks are perfectly safe
             if len(feature_names) == 0:
                 base_cols = [col for col in train_df.columns if col != TARGET_COLUMN]
-                # If lengths match, use base columns, otherwise fallback to index
                 if len(base_cols) == len(raw_importances):
                     feature_names = base_cols
                 else:
                     feature_names = [f"feature_{i}" for i in range(len(raw_importances))]
 
-            # 4. Map names to values and clean up Scikit-Learn prefixes (e.g., 'num__TotalCharges')
+            # 4. Map names to values and clean up Scikit-Learn prefixes
             importances = {}
             for i, val in enumerate(raw_importances):
                 clean_name = feature_names[i].split('__')[-1] if i < len(feature_names) else f"feature_{i}"
@@ -290,18 +306,16 @@ class ModelRegistry:
             logging.exception("[MODEL REGISTRY] Feature importance generation failed")
             raise CustomerChurnException(exc, sys) from exc
         
-        
     # ==========================================================
     # MODEL VERSION REGISTRATION
     # ==========================================================
 
     def _register_model_version(self, version: str) -> Dict[str, str]:
-        """Register model version and store artifacts."""
-
+        """Create version directory and store all associated artifacts locally."""
         version_dir = os.path.join(self.config.registry_dir, version)
 
         if os.path.exists(version_dir):
-            raise ValueError(f"Version directory already exists: {version}")
+            raise ValueError(f"Version directory already exists locally: {version}")
 
         os.makedirs(version_dir)
 
@@ -315,20 +329,10 @@ class ModelRegistry:
 
             train_df = read_csv_file(self.ingestion_artifact.train_file_path)
 
-            baseline_path = self._generate_and_store_baseline(
-                version_dir, train_df
-            )
-
+            baseline_path = self._generate_and_store_baseline(version_dir, train_df)
             metrics_path = self._generate_and_store_metrics(version_dir)
-
-            feature_path = self._generate_and_store_feature_importance(
-                version_dir,
-                train_df,
-            )
-
-            requirements_path = self._generate_and_store_requirements(
-                version_dir
-            )
+            feature_path = self._generate_and_store_feature_importance(version_dir, train_df)
+            requirements_path = self._generate_and_store_requirements(version_dir)
 
             return {
                 "model_path": model_path,
@@ -339,7 +343,7 @@ class ModelRegistry:
             }
 
         except Exception as exc:
-            logging.exception("Model registration failed")
+            logging.exception("[MODEL REGISTRY] Local artifact registration failed")
 
             if os.path.exists(version_dir):
                 shutil.rmtree(version_dir, ignore_errors=True)
@@ -351,66 +355,75 @@ class ModelRegistry:
     # ==========================================================
 
     def initiate_model_registry(self) -> Optional[str]:
-        """Promote approved model into registry."""
-
+        """Promote approved model into the registry and sync to S3."""
         try:
-            logging.info("Model promotion started")
+            logging.info("[MODEL REGISTRY PIPELINE] Started")
 
             if not self.evaluation_artifact:
                 raise ValueError("Evaluation artifact required.")
 
             if not self.evaluation_artifact.approval_status:
-                logging.info("Model not approved. Skipping promotion.")
+                logging.info("[MODEL REGISTRY] Candidate model was not approved. Skipping promotion.")
                 return None
 
+            # 1. Fetch remote SSOT metadata
             metadata = self._load_registry_metadata()
 
+            # 2. Determine next consistent version
             version = self._get_next_version(metadata)
 
+            # 3. Build local artifacts
             artifact_paths = self._register_model_version(version)
 
-            checksum = self._compute_checksum(
-                artifact_paths["model_path"]
-            )
+            checksum = self._compute_checksum(artifact_paths["model_path"])
 
             model_size_mb = round(
-                os.path.getsize(artifact_paths["model_path"])
-                / (1024 * 1024),
+                os.path.getsize(artifact_paths["model_path"]) / (1024 * 1024),
                 4,
             )
 
+            # 4. Update Metadata
+            # Ensure relative paths are stored so S3 URI construction in downstream apps works
+            relative_base = f"{S3_MODEL_REGISTRY_DIR_NAME}/{version}"
+            
             metadata.setdefault("registered_versions", []).append(version)
-
             metadata.setdefault("versions_metadata", {})[version] = {
                 "model_name": self.evaluation_artifact.best_model_name,
-                "model_path": artifact_paths["model_path"],
-                "baseline_path": artifact_paths["baseline_path"],
-                "metrics_path": artifact_paths["metrics_path"],
-                "feature_importance_path": artifact_paths[
-                    "feature_importance_path"
-                ],
-                "requirements_path": artifact_paths["requirements_path"],
+                "model_path": f"{relative_base}/model.pkl",
+                "baseline_path": f"{relative_base}/baseline.json",
+                "metrics_path": f"{relative_base}/metrics.json",
+                "feature_importance_path": f"{relative_base}/feature_importance.json",
+                "requirements_path": f"{relative_base}/requirements.txt",
                 "model_size_mb": model_size_mb,
                 "checksum_sha256": checksum,
-                "registered_at_utc": datetime.now(
-                    timezone.utc
-                ).isoformat(),
+                "registered_at_utc": datetime.now(timezone.utc).isoformat(),
             }
 
             metadata["current_production_version"] = version
-            metadata["last_updated_at_utc"] = datetime.now(
-                timezone.utc
-            ).isoformat()
+            metadata["last_updated_at_utc"] = datetime.now(timezone.utc).isoformat()
 
+            # 5. Save updated metadata locally
             self._atomic_write_metadata(metadata)
 
+            # 6. Immediately sync the local registry to S3 to maintain SSOT
+            s3_registry_uri = f"s3://{S3_BUCKET_NAME}/{S3_MODEL_REGISTRY_DIR_NAME}"
+            logging.info("[MODEL REGISTRY] Syncing updated registry to S3: %s", s3_registry_uri)
+            
+            # Using aws s3 sync handles both the new version folder and the updated metadata file
+            self.s3_sync.sync_folder_to_s3(
+                folder=self.config.registry_dir,
+                aws_bucket_url=s3_registry_uri,
+            )
+            
+            logging.info("[MODEL REGISTRY] S3 sync completed successfully.")
+
             logging.info(
-                "Model promotion completed | version=%s",
+                "[MODEL REGISTRY PIPELINE] Completed | Promoted version=%s",
                 version,
             )
 
             return version
 
         except Exception as exc:
-            logging.exception("Model promotion failed")
+            logging.exception("[MODEL REGISTRY PIPELINE] Failed")
             raise CustomerChurnException(exc, sys) from exc

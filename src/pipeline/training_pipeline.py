@@ -233,7 +233,6 @@ class TrainingPipeline:
 
             logging.info("Syncing artifacts to S3...")
             sync_to_s3(ARTIFACT_DIR, S3_ARTIFACT_DIR_NAME)
-            sync_to_s3(MODEL_REGISTRY_DIR, S3_MODEL_REGISTRY_DIR_NAME)
 
             # --------------------------------------------------
             # Trigger Inference Service Webhook
