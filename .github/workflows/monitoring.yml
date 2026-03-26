@@ -1,0 +1,60 @@
+name: Continual Learning Monitor
+
+on:
+  schedule:
+    # Runs every Sunday at midnight UTC
+    - cron: '0 0 * * 0' 
+  workflow_dispatch: 
+    # Allows you to click "Run workflow" in GitHub Actions for manual testing
+
+env:
+  AWS_REGION: ap-southeast-2 # Ensure this matches your AWS setup
+  ECR_REPOSITORY_MONITORING: churn-monitoring
+
+jobs:
+  evaluate-data-drift:
+    name: Evaluate Data Drift
+    runs-on: ubuntu-latest
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Pull Monitoring Image
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+        run: |
+          docker pull $ECR_REGISTRY/$ECR_REPOSITORY_MONITORING:latest
+
+      - name: Create .env file dynamically
+        # We inject the secrets securely into the runner environment
+        run: |
+          echo "AWS_ACCESS_KEY_ID=${{ secrets.AWS_ACCESS_KEY_ID }}" >> .env
+          echo "AWS_SECRET_ACCESS_KEY=${{ secrets.AWS_SECRET_ACCESS_KEY }}" >> .env
+          echo "AWS_DEFAULT_REGION=${{ env.AWS_REGION }}" >> .env
+          echo "MONGODB_URL=${{ secrets.MONGODB_URL }}" >> .env
+          echo "MONGODB_DATABASE=${{ secrets.MONGODB_DATABASE }}" >> .env
+          echo "MONGODB_PREDICTION_LOGGING_COLLECTION=${{ secrets.MONGODB_PREDICTION_LOGGING_COLLECTION }}" >> .env
+          echo "MONGODB_DLQ_COLLETION=${{ secrets.MONGODB_DLQ_COLLETION }}" >> .env
+          echo "GITHUB_PAT=${{ secrets.GH_PAT }}" >> .env
+          echo "GITHUB_REPO=${{ github.repository }}" >> .env
+          echo "GITHUB_WORKFLOW_ID=training.yml" >> .env
+
+      - name: Execute Monitoring Pipeline
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+        # Runs the container and immediately deletes it when finished (--rm)
+        run: |
+          docker run --rm --env-file .env $ECR_REGISTRY/$ECR_REPOSITORY_MONITORING:latest
+
+      - name: Cleanup Secrets
+        # Security best practice: wipe the .env file from the runner
+        if: always()
+        run: rm -f .env
