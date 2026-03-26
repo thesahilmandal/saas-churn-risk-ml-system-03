@@ -40,9 +40,9 @@ class TriggerEngine:
             self.s3_sync = S3Sync()
             
             # CI/CD Environment Variables
-            self.github_token = os.getenv("GITHUB_PAT")
-            self.github_repo = os.getenv("GITHUB_REPO")  # e.g., "username/repo-name"
-            self.workflow_id = os.getenv("GITHUB_WORKFLOW_ID", "training.yml")
+            self.github_token = os.getenv("PAT_GITHUB")
+            self.github_repo = os.getenv("REPO_GITHUB")  # e.g., "username/repo-name"
+            self.workflow_id = os.getenv("WORKFLOW_ID_GITHUB", "training.yml")
 
             # Local and Remote paths for the state file
             self.state_file_name = "last_trigger_state.json"

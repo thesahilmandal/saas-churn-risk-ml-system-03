@@ -1,0 +1,141 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches:
+      - main
+    paths-ignore:
+      - 'README.md'
+      - 'docs/**'
+      - '.gitignore'
+
+env:
+  AWS_REGION: ap-south-1 
+  ECR_REPOSITORY_INFERENCE: churn-inference
+  ECR_REPOSITORY_TRAINING: churn-training
+  ECR_REPOSITORY_MONITORING: churn-monitoring
+
+jobs:
+  # =========================================================
+  # JOB 1: Continuous Integration (Testing)
+  # =========================================================
+  integration:
+    name: Continuous Integration
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v3
+
+      - name: Set up Python 3.10
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.12.1'
+          cache: 'pip'
+
+      - name: Install Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pytest flake8
+
+    #   - name: Run Linting and Unit Tests
+    #     run: |
+    #       # Fails the build if there are Python syntax errors or undefined names
+    #       flake8 src --count --select=E9,F63,F7,F82 --show-source --statistics
+    #       # Run tests (assuming you have a tests/ directory)
+    #       pytest -v
+
+  # =========================================================
+  # JOB 2: Build and Push Docker Images to Amazon ECR
+  # =========================================================
+  build-and-push-ecr:
+    name: Build and Push to ECR
+    needs: integration
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v3
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build, tag, and push Inference Image
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+        run: |
+          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY_INFERENCE:latest -f Dockerfile.inference .
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY_INFERENCE:latest
+
+      - name: Build, tag, and push Training Image
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+        run: |
+          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY_TRAINING:latest -f Dockerfile.training .
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY_TRAINING:latest
+
+      - name: Build, tag, and push Monitoring Image
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+        run: |
+          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY_MONITORING:latest -f Dockerfile.monitoring .
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY_MONITORING:latest
+
+  # =========================================================
+  # JOB 3: Continuous Deployment (EC2 Inference Server)
+  # =========================================================
+  continuous-deployment:
+    name: Deploy Inference to EC2
+    needs: build-and-push-ecr
+    runs-on: ubuntu-latest
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Execute Deployment on EC2 via SSH
+        uses: appleboy/ssh-action@v0.1.10
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USERNAME }} # Usually 'ubuntu' or 'ec2-user'
+          key: ${{ secrets.EC2_SSH_KEY }}
+          script: |
+            # 1. Login to ECR on the EC2 instance
+            aws ecr get-login-password --region ${{ env.AWS_REGION }} | docker login --username AWS --password-stdin ${{ steps.login-ecr.outputs.registry }}
+            
+            # 2. Pull the latest Inference image
+            docker pull ${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY_INFERENCE }}:latest
+            
+            # 3. Stop and remove the currently running container (if it exists)
+            docker stop churn-inference-server || true
+            docker rm churn-inference-server || true
+            
+            # 4. Clean up dangling images to free up EC2 disk space
+            docker image prune -f
+            
+            # 5. Run the new container, passing necessary secrets as environment variables
+            docker run -d \
+              --name churn-inference-server \
+              -p 8000:8000 \
+              -e AWS_ACCESS_KEY_ID=${{ secrets.AWS_ACCESS_KEY_ID }} \
+              -e AWS_SECRET_ACCESS_KEY=${{ secrets.AWS_SECRET_ACCESS_KEY }} \
+              -e AWS_DEFAULT_REGION=${{ env.AWS_REGION }} \
+              -e MONGODB_URL=${{ secrets.MONGODB_URL }} \
+              -e MONGODB_DATABASE=${{ secrets.MONGODB_DATABASE }} \
+              -e MONGODB_PREDICTION_LOGGING_COLLECTION=${{ secrets.MONGODB_PREDICTION_LOGGING_COLLECTION }} \
+              -e MONGODB_DLQ_COLLETION=${{ secrets.MONGODB_DLQ_COLLETION }} \
+              ${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY_INFERENCE }}:latest
