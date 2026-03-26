@@ -76,3 +76,13 @@ main_0.py
 Thumbs.db
 *.zip
 *.tar.gz
+__pycache__/
+*.pyc
+.env
+venv/
+env/
+artifact/
+monitoring/
+logs/
+.git/
+.github/

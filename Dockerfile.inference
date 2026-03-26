@@ -1,0 +1,39 @@
+# Use a slim Python base image to keep the attack surface and size small
+FROM python:3.12.1-slim
+
+# Set environment variables
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PYTHONPATH="/app" \
+    PORT=8000
+
+# Set the working directory
+WORKDIR /app
+
+# Install system dependencies
+# (Keeping this minimal is crucial for production web servers)
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy only the requirements file to leverage Docker layer caching
+COPY requirements.txt .
+
+# Install Python dependencies
+RUN pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir -r requirements.txt
+
+# Copy the application code and configuration
+COPY src/ ./src/
+# COPY config/ ./config/
+COPY data_schema/ ./data_schema/
+
+
+# Expose the port that Uvicorn will listen on
+EXPOSE 8000
+
+# Start the Uvicorn server
+# Note: In a true high-traffic production setup, you might use Gunicorn 
+# to manage multiple Uvicorn workers (e.g., --workers 4), but for this 
+# portfolio project, a single worker is perfectly fine.
+CMD ["uvicorn", "src.inference.server:app", "--host", "0.0.0.0", "--port", "8000"]

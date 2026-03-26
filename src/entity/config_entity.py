@@ -325,7 +325,6 @@ class ModelRegistryConfig:
 # Model Monitoring Config
 # ============================================================
 
-
 class MonitoringConfig:
     """Configuration for monitoring pipeline."""
 
@@ -336,46 +335,32 @@ class MonitoringConfig:
             )
 
             # Base path
-            self.monitoring_artifact_dir: str = os.path.join(
+            self.monitoring_dir: str = os.path.join(
                 pipeline_constants.ARTIFACT_DIR,
                 pipeline_constants.MONITORING_DIR_NAME,
                 self.run_id
             )
-
-            # Fast Lane Paths
-            self.drift_report_dir = os.path.join(
-                self.monitoring_artifact_dir, 
-                pipeline_constants.DRIFT_REPORT_DIR
-            )
-            self.drift_report_file_path = os.path.join(
-                self.drift_report_dir,
-                "drift_report.json"
-            )
-
-            # Slow Lane Paths
-            self.performance_report_dir = os.path.join(
-                self.monitoring_artifact_dir, 
-                pipeline_constants.PERFORMANCE_REPORT_DIR
-            )
-            self.performance_report_file_path = os.path.join(
-                self.performance_report_dir,
-                "joined_evaluation_data.csv"
-            )
-
-            # Curation Paths
-            self.curated_data_dir = os.path.join(
-                self.monitoring_artifact_dir,
-                pipeline_constants.CURATED_DATA_DIR
-            )
-            self.curated_dataset_path = os.path.join(
-                self.curated_data_dir,
-                f"train_v_{self.run_id}.csv"    
-            )
-
-            # Create directories immediately upon instantiation
-            os.makedirs(self.drift_report_dir, exist_ok=True)
-            os.makedirs(self.performance_report_dir, exist_ok=True)
-            os.makedirs(self.curated_data_dir, exist_ok=True)
             
+            os.makedirs(self.monitoring_dir, exist_ok=True)
+            
+            # File Paths
+            self.live_data_file_path: str = os.path.join(
+                self.monitoring_dir,
+                pipeline_constants.MONITORING_LIVE_DATA_FILE_NAME
+            )
+            self.current_stats_file_path: str = os.path.join(
+                self.monitoring_dir,
+                pipeline_constants.MONITORING_CURRENT_STATS_FILE_NAME
+            )
+            self.drift_report_file_path: str = os.path.join(
+                self.monitoring_dir,
+                pipeline_constants.MONITORING_DRIFT_REPORT_FILE_NAME
+            )
+
+            # Thresholds and Windows
+            self.days_window: int = pipeline_constants.MONITORING_DAYS_WINDOW
+            self.psi_threshold: float = pipeline_constants.MONITORING_PSI_THRESHOLD
+            self.cooldown_days: int = pipeline_constants.MONITORING_COOLDOWN_DAYS
+
         except Exception as e:
-            raise CustomerChurnException(e, sys)
+            raise CustomerChurnException(e, sys) from e

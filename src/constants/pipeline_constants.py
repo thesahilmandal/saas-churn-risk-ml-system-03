@@ -172,3 +172,19 @@ MODEL_EVALUATION_METADATA_FILE_NAME: str = "metadata.json"
 MODEL_EVALUATION_DECISION_THRESHOLD: float = 0.50
 MODEL_EVALUATION_RECALL_TOLERANCE: float = 0.005
 MODEL_EVALUATION_MIN_IMPROVEMENT: float = 0.01
+
+
+# ==============================================================================
+# MONITORING & CONTINUAL LEARNING CONSTANTS
+# ==============================================================================
+
+# Directory and File Names
+MONITORING_DIR_NAME: str = "monitoring"
+MONITORING_LIVE_DATA_FILE_NAME: str = "live_inference_data.csv"
+MONITORING_CURRENT_STATS_FILE_NAME: str = "current_stats.json"
+MONITORING_DRIFT_REPORT_FILE_NAME: str = "drift_report.json"
+
+# Statistical & Temporal Thresholds
+MONITORING_DAYS_WINDOW: int = 7          # Fetch the last 7 days of inference data
+MONITORING_PSI_THRESHOLD: float = 0.2    # PSI > 0.2 indicates significant drift
+MONITORING_COOLDOWN_DAYS: int = 1        # Prevent re-triggering training if done in last 24h

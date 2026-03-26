@@ -198,7 +198,7 @@ class TrainingPipeline:
             logging.info("TRAINING PIPELINE EXECUTION STARTED")
             logging.info("=" * 60)
 
-            etl_artifact = self.start_etl()
+            # etl_artifact = self.start_etl()
 
             ingestion_artifact = self.start_data_ingestion()
 
