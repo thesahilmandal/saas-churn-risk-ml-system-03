@@ -10,7 +10,7 @@ on:
       - '.gitignore'
 
 env:
-  AWS_REGION: ap-south-1 
+  AWS_REGION: ap-southeast-2 
   ECR_REPOSITORY_INFERENCE: churn-inference
   ECR_REPOSITORY_TRAINING: churn-training
   ECR_REPOSITORY_MONITORING: churn-monitoring
